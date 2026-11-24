@@ -158,6 +158,44 @@ class VisibleRoachesTest(unittest.TestCase):
       self.assertTrue(cvrcek.visible_roaches(pos, 40, 48, 220, None))
 
 
+class CenteringTest(unittest.TestCase):
+
+  def screen_extent(self, rows, cols, bounce, sombrero, size=1.0):
+    """Highest and lowest screen row the roach reaches over a hop cycle,
+    placed exactly the way run() places it."""
+    box_w = max(16, min(cols, int(48 * size)))
+    box_h = max(10, min(rows - 2, int(28 * size)))
+    top_row = cvrcek.centered_top_row(
+        rows, box_h, bounce, cvrcek.figure_middle(box_w, box_h, sombrero)
+    )
+    highest, lowest = rows, 0
+    for k in range(60):
+      hop_wave = abs(math.sin(k * math.pi / 60))
+      mesh = cvrcek.build_articulated_roach(k * 0.1, "groove", sombrero)
+      sprite, _ = cvrcek.render_sprite(
+          mesh, box_w, box_h, k * 0.22, 0.0, 0.0,
+          hop_wave * 0.55 * bounce, 0.45, 0.55, 0.70,
+      )
+      base = max(1, top_row - int(round(hop_wave * 2.2 * bounce)))
+      drawn = [base + r for r, line in enumerate(sprite) if line.strip()]
+      highest, lowest = min(highest, drawn[0]), max(lowest, drawn[-1])
+    return highest, lowest
+
+  def test_hop_is_centered_vertically(self):
+    for rows, bounce, sombrero, size in [
+        (40, 1.0, False, 1.0), (60, 1.0, True, 1.0), (50, 0.0, False, 1.0),
+        (80, 1.0, False, 2.0), (35, 1.0, False, 1.0),
+    ]:  # not -b 2: there the head hops out of the sprite box and is clipped
+      highest, lowest = self.screen_extent(rows, 200, bounce, sombrero, size)
+      space_above = highest - 1
+      space_below = rows - lowest
+      self.assertLessEqual(
+          abs(space_above - space_below), 2,
+          f"rows={rows} bounce={bounce}: {space_above} above, "
+          f"{space_below} below",
+      )
+
+
 class CliTest(unittest.TestCase):
 
   def test_forever_flag(self):

@@ -545,6 +545,29 @@ def visible_roaches(pos, spacing, box_w, cols, count=None):
   return range(first, last + 1)
 
 
+def figure_middle(box_w, box_h, sombrero=False):
+  """Vertical middle (in rows, from the top of the box) of a resting roach."""
+  mesh = build_articulated_roach(0.0, "groove", with_sombrero=sombrero)
+  rows_out, _ = render_sprite(mesh, box_w, box_h, 0.0, 0.0, 0.0, 0.0,
+                              0.45, 0.55, 0.70)
+  drawn = [i for i, row in enumerate(rows_out) if row.strip()]
+  if not drawn:
+    return box_h / 2
+  return (drawn[0] + drawn[-1] + 1) / 2
+
+
+def centered_top_row(rows, box_h, bounce, fig_mid):
+  """1-based screen row for the top of the sprite box, chosen so the roach
+  hops evenly around the middle of the screen (half the hop above the middle,
+  half below), instead of resting on the middle and hopping only upwards."""
+  # How far a full hop lifts the roach on screen: the 3D bob (bob_y, projected
+  # the way render_sprite does it) plus the whole-sprite row_hop.
+  bob_rows = 0.55 * bounce * box_h * 0.185 * 5.0 / 5.8
+  hop_rows = 2.2 * bounce + bob_rows
+  top = int(round(rows / 2 - fig_mid + hop_rows / 2)) + 1
+  return max(1, min(rows - box_h + 1, top))
+
+
 def run():
   args = parse_args()
 
@@ -569,6 +592,9 @@ def run():
     delay = max(0.006, 0.035 / max(0.1, args.speed))
     swarm_count = max(1, args.swarm)
     spacing = int(box_w * 0.85)
+    center_top = centered_top_row(
+        rows, box_h, args.bounce, figure_middle(box_w, box_h, args.sombrero)
+    )
 
     angle_y = 0.0
     anim_step = 0.0
@@ -609,8 +635,8 @@ def run():
           start_c = max(0, -trail_x)
           end_c = min(box_w, cols - trail_x)
           if start_c < end_c:
-            base_r = max(1, (rows - box_h) // 2)
-            for r in range(box_h):
+            base_r = center_top
+            for r in range(min(box_h, rows - base_r + 1)):
               dots = "." * (end_c - start_c)
               frame_buf.append(
                   f"\033[{base_r + r};{trail_col}H\033[38;2;70;70;85m{dots}"
@@ -655,11 +681,11 @@ def run():
               (rows - box_h) * (1.0 - progress)
               + math.sin(hop_phase * 0.3 + phase) * 2
           )
+          ground_row = max(1, min(rows - box_h, ground_row))
         else:
-          ground_row = (rows - box_h) // 2
+          ground_row = center_top
 
-        ground_row = max(1, min(rows - box_h, ground_row))
-        base_row = max(1, min(rows - box_h, ground_row - row_hop))
+        base_row = max(1, ground_row - row_hop)
 
         for r, row_str in enumerate(sprite_rows):
           draw_row = base_row + r
